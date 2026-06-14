@@ -9,6 +9,10 @@ const latestWeightCard = document.querySelector("#latestWeightCard");
 const todayGoalCard = document.querySelector("#todayGoalCard");
 const maintenanceInput = document.querySelector("#maintenanceInput");
 const intakeGoalInput = document.querySelector("#intakeGoalInput");
+const downloadBackup = document.querySelector("#downloadBackup");
+const restoreBackup = document.querySelector("#restoreBackup");
+const uploadBackup = document.querySelector("#uploadBackup");
+const backupStatus = document.querySelector("#backupStatus");
 const sessionStart = document.querySelector("#sessionStart");
 const sessionEnd = document.querySelector("#sessionEnd");
 const sessionPanel = document.querySelector(".session-panel");
@@ -251,6 +255,47 @@ async function saveStore() {
   });
 }
 
+async function downloadDataBackup() {
+  backupStatus.textContent = "Preparing download...";
+  const response = await apiFetch("/api/backup");
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  const date = new Date().toISOString().slice(0, 10);
+  link.href = url;
+  link.download = `caltracker-backup-${date}.json`;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  backupStatus.textContent = "Backup downloaded.";
+}
+
+async function restoreDataBackup() {
+  const file = restoreBackup.files[0];
+  if (!file) {
+    backupStatus.textContent = "Choose a backup file first.";
+    return;
+  }
+
+  backupStatus.textContent = "Restoring backup...";
+  try {
+    const payload = JSON.parse(await file.text());
+    const response = await apiFetch("/api/restore", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Restore failed.");
+    restoreBackup.value = "";
+    backupStatus.textContent = "Backup restored.";
+    await loadStore();
+  } catch (error) {
+    backupStatus.textContent = error.message;
+  }
+}
+
 function render() {
   renderDashboard();
   renderCalendar();
@@ -446,6 +491,9 @@ document.querySelector("#saveIntakeGoal").addEventListener("click", async () => 
   await saveStore();
   render();
 });
+
+downloadBackup.addEventListener("click", downloadDataBackup);
+uploadBackup.addEventListener("click", restoreDataBackup);
 
 document.querySelector("#saveSession").addEventListener("click", async () => {
   const start = sessionStart.value;

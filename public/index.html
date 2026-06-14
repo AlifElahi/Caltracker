@@ -68,6 +68,16 @@
           <p class="settings-note">Used only for intake colors.</p>
         </section>
 
+        <section class="backup-panel">
+          <p class="eyebrow">Backup</p>
+          <h2>Data sync</h2>
+          <button id="downloadBackup" type="button">Download data</button>
+          <label for="restoreBackup">Upload backup</label>
+          <input id="restoreBackup" type="file" accept="application/json,.json">
+          <button id="uploadBackup" class="quiet-button" type="button">Restore data</button>
+          <p id="backupStatus" class="settings-note">Exports settings and day logs only.</p>
+        </section>
+
         <section class="legend">
           <span><i class="dot budget-good"></i> Under goal</span>
           <span><i class="dot budget-warn"></i> Near goal</span>

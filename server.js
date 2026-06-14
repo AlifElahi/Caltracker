@@ -221,6 +221,15 @@ function sendJson(res, status, payload) {
   res.end(JSON.stringify(payload));
 }
 
+function sendBackup(res, store) {
+  const date = new Date().toISOString().slice(0, 10);
+  res.writeHead(200, {
+    "Content-Type": "application/json; charset=utf-8",
+    "Content-Disposition": `attachment; filename="caltracker-backup-${date}.json"`
+  });
+  res.end(JSON.stringify({ exportedAt: new Date().toISOString(), ...store }, null, 2));
+}
+
 async function handleApi(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
 
@@ -272,6 +281,19 @@ async function handleApi(req, res) {
   if (req.method === "PUT" && url.pathname === "/api/data") {
     const payload = await readBody(req);
     await writeStore(payload);
+    return sendJson(res, 200, { ok: true });
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/backup") {
+    return sendBackup(res, await readStore());
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/restore") {
+    const payload = await readBody(req);
+    if (!payload || typeof payload !== "object" || !payload.settings || !payload.days) {
+      return sendJson(res, 400, { error: "Backup file must contain settings and days." });
+    }
+    await writeStore({ settings: payload.settings, days: payload.days });
     return sendJson(res, 200, { ok: true });
   }
 

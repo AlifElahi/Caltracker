@@ -130,7 +130,8 @@ p {
 
 .metric-card,
 .settings-panel,
-.session-panel {
+.session-panel,
+.backup-panel {
   border: 1px solid rgba(255, 255, 255, 0.13);
   border-radius: 8px;
   padding: 16px;
@@ -152,7 +153,8 @@ p {
 }
 
 .settings-panel label,
-.session-panel label {
+.session-panel label,
+.backup-panel label {
   color: rgba(255, 255, 255, 0.76);
 }
 
@@ -179,6 +181,21 @@ p {
   margin: 0;
   color: white;
   font-size: 1.05rem;
+}
+
+.backup-panel h2 {
+  margin: 0 0 12px;
+  color: white;
+  font-size: 1.05rem;
+}
+
+.backup-panel button {
+  width: 100%;
+  margin-top: 10px;
+}
+
+.backup-panel input {
+  padding: 9px;
 }
 
 .mini-toggle {
