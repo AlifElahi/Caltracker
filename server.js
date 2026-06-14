@@ -4,6 +4,7 @@ import { existsSync } from "node:fs";
 import { extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { MongoClient } from "mongodb";
 
 const root = fileURLToPath(new URL(".", import.meta.url));
 const publicDir = join(root, "public");
@@ -13,6 +14,12 @@ const authFile = join(dataDir, "auth.json");
 const sessionsFile = join(dataDir, "sessions.json");
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "0.0.0.0";
+const mongoUri = process.env.MONGODB_URI || "";
+const mongoDbName = process.env.MONGODB_DB || "caltracker";
+const mongoCollectionName = process.env.MONGODB_COLLECTION || "app_state";
+const useMongo = Boolean(mongoUri);
+let mongoClient;
+let mongoCollection;
 let sessions = new Map();
 
 const mimeTypes = {
@@ -26,42 +33,86 @@ const mimeTypes = {
   ".jpeg": "image/jpeg"
 };
 
+function defaultStore() {
+  const today = new Date().toISOString().slice(0, 10);
+  return {
+    settings: {
+      maintenanceCalories: 2200,
+      intakeGoal: 1200,
+      maintenanceHistory: [{ date: today, calories: 2200 }],
+      sessionStart: "",
+      sessionEnd: ""
+    },
+    days: {}
+  };
+}
+
+async function getMongoCollection() {
+  if (!useMongo) return null;
+  if (!mongoClient) {
+    mongoClient = new MongoClient(mongoUri);
+    await mongoClient.connect();
+    mongoCollection = mongoClient.db(mongoDbName).collection(mongoCollectionName);
+  }
+  return mongoCollection;
+}
+
 async function ensureStore() {
+  if (useMongo) {
+    const collection = await getMongoCollection();
+    await collection.updateOne(
+      { _id: "entries" },
+      { $setOnInsert: { ...defaultStore(), createdAt: new Date() } },
+      { upsert: true }
+    );
+    return;
+  }
+
   await mkdir(dataDir, { recursive: true });
   if (!existsSync(dataFile)) {
-    const today = new Date().toISOString().slice(0, 10);
-    await writeFile(
-      dataFile,
-      JSON.stringify(
-        {
-          settings: {
-            maintenanceCalories: 2200,
-            intakeGoal: 1200,
-            maintenanceHistory: [{ date: today, calories: 2200 }],
-            sessionStart: "",
-            sessionEnd: ""
-          },
-          days: {}
-        },
-        null,
-        2
-      )
-    );
+    await writeFile(dataFile, JSON.stringify(defaultStore(), null, 2));
   }
 }
 
 async function readAuth() {
+  if (useMongo) {
+    const collection = await getMongoCollection();
+    const document = await collection.findOne({ _id: "auth" });
+    return document?.auth || null;
+  }
+
   await mkdir(dataDir, { recursive: true });
   if (!existsSync(authFile)) return null;
   return JSON.parse(await readFile(authFile, "utf8"));
 }
 
 async function writeAuth(auth) {
+  if (useMongo) {
+    const collection = await getMongoCollection();
+    await collection.replaceOne(
+      { _id: "auth" },
+      { _id: "auth", auth, updatedAt: new Date() },
+      { upsert: true }
+    );
+    return;
+  }
+
   await mkdir(dataDir, { recursive: true });
   await writeFile(authFile, JSON.stringify(auth, null, 2));
 }
 
 async function loadSessions() {
+  if (useMongo) {
+    const collection = await getMongoCollection();
+    const document = await collection.findOne({ _id: "sessions" });
+    const rawSessions = document?.sessions || {};
+    sessions = new Map(
+      Object.entries(rawSessions).filter(([, session]) => session.expiresAt > Date.now())
+    );
+    await saveSessions();
+    return;
+  }
+
   await mkdir(dataDir, { recursive: true });
   if (!existsSync(sessionsFile)) return;
   const rawSessions = JSON.parse(await readFile(sessionsFile, "utf8"));
@@ -72,6 +123,16 @@ async function loadSessions() {
 }
 
 async function saveSessions() {
+  if (useMongo) {
+    const collection = await getMongoCollection();
+    await collection.replaceOne(
+      { _id: "sessions" },
+      { _id: "sessions", sessions: Object.fromEntries(sessions), updatedAt: new Date() },
+      { upsert: true }
+    );
+    return;
+  }
+
   await mkdir(dataDir, { recursive: true });
   await writeFile(sessionsFile, JSON.stringify(Object.fromEntries(sessions), null, 2));
 }
@@ -138,7 +199,14 @@ async function clearSession(req, res) {
 
 async function readStore() {
   await ensureStore();
-  const store = JSON.parse(await readFile(dataFile, "utf8"));
+  let store;
+  if (useMongo) {
+    const collection = await getMongoCollection();
+    const { _id, createdAt, updatedAt, ...document } = await collection.findOne({ _id: "entries" });
+    store = document;
+  } else {
+    store = JSON.parse(await readFile(dataFile, "utf8"));
+  }
   const normalized = normalizeStore(store);
   if (normalized.changed) await writeStore(normalized.store);
   return normalized.store;
@@ -146,7 +214,19 @@ async function readStore() {
 
 async function writeStore(store) {
   await ensureStore();
-  await writeFile(dataFile, JSON.stringify(normalizeStore(store).store, null, 2));
+  const normalizedStore = normalizeStore(store).store;
+
+  if (useMongo) {
+    const collection = await getMongoCollection();
+    await collection.replaceOne(
+      { _id: "entries" },
+      { _id: "entries", ...normalizedStore, updatedAt: new Date() },
+      { upsert: true }
+    );
+    return;
+  }
+
+  await writeFile(dataFile, JSON.stringify(normalizedStore, null, 2));
 }
 
 function normalizeStore(store) {
@@ -303,7 +383,7 @@ async function handleApi(req, res) {
 async function serveStatic(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const pathname = url.pathname === "/" ? "/index.html" : decodeURIComponent(url.pathname);
-  const publicPaths = new Set(["/login.html", "/styles.css", "/login.js"]);
+  const publicPaths = new Set(["/login.html", "/styles.css", "/login.js", "/favicon.svg"]);
 
   if (!publicPaths.has(pathname) && !(await isAuthenticated(req))) {
     res.writeHead(302, { Location: "/login.html" });
@@ -352,4 +432,5 @@ await loadSessions();
 
 server.listen(port, host, () => {
   console.log(`Calorie Calendar running at http://${host}:${port}`);
+  console.log(`Storage: ${useMongo ? `MongoDB database "${mongoDbName}"` : "local JSON files"}`);
 });
