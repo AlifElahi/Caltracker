@@ -259,7 +259,7 @@ async function loadStore() {
   intakeGoalInput.value = store.settings.intakeGoal || 1200;
   sessionStart.value = store.settings.sessionStart || "";
   sessionEnd.value = store.settings.sessionEnd || "";
-  render();
+  render({ focusTodayOnMobile: true });
 }
 
 async function addUser() {
@@ -346,9 +346,9 @@ async function restoreDataBackup() {
   }
 }
 
-function render() {
+function render(options = {}) {
   renderDashboard();
-  renderCalendar();
+  renderCalendar(options);
   renderSessionReport();
   if (dialog.open) renderDialog();
 }
@@ -386,7 +386,23 @@ function renderSessionReport() {
   }
 }
 
-function renderCalendar() {
+function isMobileCalendar() {
+  return window.matchMedia("(max-width: 700px)").matches;
+}
+
+function focusTodayCellOnMobile(todayKey) {
+  if (!isMobileCalendar()) return;
+
+  requestAnimationFrame(() => {
+    const todayCell = calendarGrid.querySelector(`[data-date="${todayKey}"]`);
+    if (!todayCell) return;
+
+    const top = todayCell.getBoundingClientRect().top + window.scrollY - 12;
+    window.scrollTo({ top: Math.max(0, top), behavior: "auto" });
+  });
+}
+
+function renderCalendar({ focusTodayOnMobile = false } = {}) {
   const year = visibleMonth.getFullYear();
   const month = visibleMonth.getMonth();
   const first = new Date(year, month, 1);
@@ -410,6 +426,7 @@ function renderCalendar() {
 
     const cell = document.createElement("button");
     cell.type = "button";
+    cell.dataset.date = key;
     cell.className = [
       "day-cell",
       inMonth ? "" : "muted",
@@ -439,6 +456,10 @@ function renderCalendar() {
 
   monthBalance.textContent = formatSigned(Math.round(monthlyBalance));
   monthBalance.className = balanceClass(monthlyBalance);
+
+  if (focusTodayOnMobile && first.getFullYear() === new Date().getFullYear() && month === new Date().getMonth()) {
+    focusTodayCellOnMobile(todayKey);
+  }
 }
 
 function openDay(key) {
@@ -513,7 +534,7 @@ document.querySelector("#nextMonth").addEventListener("click", () => {
 
 document.querySelector("#todayButton").addEventListener("click", () => {
   visibleMonth = new Date();
-  renderCalendar();
+  renderCalendar({ focusTodayOnMobile: true });
 });
 
 sidebarToggle.addEventListener("click", () => {
