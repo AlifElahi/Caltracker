@@ -194,8 +194,37 @@ p {
   margin-top: 10px;
 }
 
-.backup-panel input {
-  padding: 9px;
+.file-picker {
+  display: flex;
+  align-items: center;
+  min-height: 42px;
+  margin-top: 0;
+  border: 1px dashed rgba(255, 255, 255, 0.28);
+  border-radius: 8px;
+  padding: 0 12px;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.84);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.file-picker:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.file-picker span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
 }
 
 .mini-toggle {

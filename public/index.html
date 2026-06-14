@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#18272d">
     <title>Calorie Calendar</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="/styles.css">
   </head>
   <body>
@@ -73,7 +74,10 @@
           <h2>Data sync</h2>
           <button id="downloadBackup" type="button">Download data</button>
           <label for="restoreBackup">Upload backup</label>
-          <input id="restoreBackup" type="file" accept="application/json,.json">
+          <label class="file-picker" for="restoreBackup">
+            <span id="restoreFileName">Choose JSON file</span>
+          </label>
+          <input id="restoreBackup" class="visually-hidden" type="file" accept="application/json,.json">
           <button id="uploadBackup" class="quiet-button" type="button">Restore data</button>
           <p id="backupStatus" class="settings-note">Exports settings and day logs only.</p>
         </section>

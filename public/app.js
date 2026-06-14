@@ -11,6 +11,7 @@ const maintenanceInput = document.querySelector("#maintenanceInput");
 const intakeGoalInput = document.querySelector("#intakeGoalInput");
 const downloadBackup = document.querySelector("#downloadBackup");
 const restoreBackup = document.querySelector("#restoreBackup");
+const restoreFileName = document.querySelector("#restoreFileName");
 const uploadBackup = document.querySelector("#uploadBackup");
 const backupStatus = document.querySelector("#backupStatus");
 const sessionStart = document.querySelector("#sessionStart");
@@ -289,6 +290,7 @@ async function restoreDataBackup() {
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Restore failed.");
     restoreBackup.value = "";
+    restoreFileName.textContent = "Choose JSON file";
     backupStatus.textContent = "Backup restored.";
     await loadStore();
   } catch (error) {
@@ -494,6 +496,9 @@ document.querySelector("#saveIntakeGoal").addEventListener("click", async () => 
 
 downloadBackup.addEventListener("click", downloadDataBackup);
 uploadBackup.addEventListener("click", restoreDataBackup);
+restoreBackup.addEventListener("change", () => {
+  restoreFileName.textContent = restoreBackup.files[0]?.name || "Choose JSON file";
+});
 
 document.querySelector("#saveSession").addEventListener("click", async () => {
   const start = sessionStart.value;
