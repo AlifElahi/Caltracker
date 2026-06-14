@@ -1,6 +1,6 @@
 # Caltracker
 
-Private calorie calendar app with login, manual food entries, walking/workout burn, weight logging, session reports, backups, and optional MongoDB storage.
+Private calorie calendar app with multi-user login, manual food entries, walking/workout burn, weight logging, session reports, backups, and optional MongoDB storage.
 
 ## Run locally
 
@@ -28,8 +28,10 @@ When MongoDB is enabled, the app stores:
 
 - calorie and weight data
 - maintenance and goal settings
-- the owner login password hash
+- user login password hashes
 - active sessions
+
+Each user has a separate calendar. The first account created keeps the original `owner` data store for compatibility with older single-user deployments. After logging in, use the Account panel in the sidebar to add another user.
 
 ## Render
 

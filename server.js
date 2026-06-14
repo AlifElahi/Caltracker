@@ -47,6 +47,72 @@ function defaultStore() {
   };
 }
 
+function publicUser(user) {
+  return {
+    id: user.id,
+    name: user.name
+  };
+}
+
+function slugify(value) {
+  const slug = String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return slug || "user";
+}
+
+function uniqueUserId(auth, name) {
+  const base = slugify(name);
+  const existing = new Set((auth?.users || []).map(user => user.id));
+  if (!existing.has(base)) return base;
+
+  for (let index = 2; ; index += 1) {
+    const candidate = `${base}-${index}`;
+    if (!existing.has(candidate)) return candidate;
+  }
+}
+
+function userStoreFile(userId) {
+  return userId === "owner" ? dataFile : join(dataDir, `entries-${userId}.json`);
+}
+
+function userStoreDocumentId(userId) {
+  return userId === "owner" ? "entries" : `entries:${userId}`;
+}
+
+function normalizeAuth(auth) {
+  if (!auth) return { auth: null, changed: false };
+  let changed = false;
+
+  if (!Array.isArray(auth.users)) {
+    const legacyUser = auth.user || auth;
+    auth = {
+      users: [
+        {
+          id: legacyUser.id || "owner",
+          name: legacyUser.name || "Me",
+          salt: legacyUser.salt,
+          hash: legacyUser.hash
+        }
+      ]
+    };
+    changed = true;
+  }
+
+  auth.users = auth.users
+    .map(user => ({
+      id: user.id || slugify(user.name),
+      name: user.name || user.id || "User",
+      salt: user.salt,
+      hash: user.hash
+    }))
+    .filter(user => user.salt && user.hash);
+
+  return { auth, changed };
+}
+
 async function getMongoCollection() {
   if (!useMongo) return null;
   if (!mongoClient) {
@@ -75,15 +141,20 @@ async function ensureStore() {
 }
 
 async function readAuth() {
+  let auth;
   if (useMongo) {
     const collection = await getMongoCollection();
     const document = await collection.findOne({ _id: "auth" });
-    return document?.auth || null;
+    auth = document?.auth || null;
+  } else {
+    await mkdir(dataDir, { recursive: true });
+    if (!existsSync(authFile)) return null;
+    auth = JSON.parse(await readFile(authFile, "utf8"));
   }
 
-  await mkdir(dataDir, { recursive: true });
-  if (!existsSync(authFile)) return null;
-  return JSON.parse(await readFile(authFile, "utf8"));
+  const normalized = normalizeAuth(auth);
+  if (normalized.changed) await writeAuth(normalized.auth);
+  return normalized.auth;
 }
 
 async function writeAuth(auth) {
@@ -137,23 +208,27 @@ async function saveSessions() {
   await writeFile(sessionsFile, JSON.stringify(Object.fromEntries(sessions), null, 2));
 }
 
-function hashPassword(password, salt = randomBytes(16).toString("hex")) {
-  const hash = scryptSync(password, salt, 64).toString("hex");
+function createUser(name, password, id = slugify(name)) {
+  const salt = randomBytes(16).toString("hex");
   return {
-    user: {
-      id: "owner",
-      name: "Me",
-      salt,
-      hash
-    }
+    id,
+    name: String(name || "User").trim() || "User",
+    salt,
+    hash: scryptSync(password, salt, 64).toString("hex")
   };
 }
 
-function verifyPassword(password, auth) {
-  const user = auth.user || auth;
-  const actual = Buffer.from(hashPassword(password, user.salt).user.hash, "hex");
+function verifyPassword(password, user) {
+  const actual = Buffer.from(scryptSync(password, user.salt, 64).toString("hex"), "hex");
   const expected = Buffer.from(user.hash, "hex");
   return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
+
+function findUser(auth, name) {
+  const users = auth?.users || [];
+  if (!name && users.length === 1) return users[0];
+  const normalized = String(name || "").trim().toLowerCase();
+  return users.find(user => user.id.toLowerCase() === normalized || user.name.toLowerCase() === normalized);
 }
 
 function parseCookies(req) {
@@ -169,23 +244,35 @@ function parseCookies(req) {
   );
 }
 
-async function isAuthenticated(req) {
+async function authenticatedUser(req) {
   const sessionId = parseCookies(req).calorie_session;
   const session = sessionId ? sessions.get(sessionId) : null;
-  if (!session) return false;
+  if (!session) return null;
   if (session.expiresAt < Date.now()) {
     sessions.delete(sessionId);
     await saveSessions();
-    return false;
+    return null;
   }
+
+  const auth = await readAuth();
+  const user = (auth?.users || []).find(item => item.id === (session.userId || "owner"));
+  if (!user) return null;
+
   session.expiresAt = Date.now() + 1000 * 60 * 60 * 24 * 14;
   await saveSessions();
-  return true;
+  return publicUser(user);
 }
 
-async function createSession(res) {
+async function isAuthenticated(req) {
+  return Boolean(await authenticatedUser(req));
+}
+
+async function createSession(res, user) {
   const sessionId = randomBytes(32).toString("hex");
-  sessions.set(sessionId, { expiresAt: Date.now() + 1000 * 60 * 60 * 24 * 14 });
+  sessions.set(sessionId, {
+    userId: user.id,
+    expiresAt: Date.now() + 1000 * 60 * 60 * 24 * 14
+  });
   await saveSessions();
   res.setHeader("Set-Cookie", `calorie_session=${sessionId}; HttpOnly; SameSite=Strict; Path=/; Max-Age=1209600`);
 }
@@ -197,36 +284,47 @@ async function clearSession(req, res) {
   res.setHeader("Set-Cookie", "calorie_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0");
 }
 
-async function readStore() {
+async function readStore(userId = "owner") {
   await ensureStore();
   let store;
   if (useMongo) {
     const collection = await getMongoCollection();
-    const { _id, createdAt, updatedAt, ...document } = await collection.findOne({ _id: "entries" });
+    await collection.updateOne(
+      { _id: userStoreDocumentId(userId) },
+      { $setOnInsert: { ...defaultStore(), createdAt: new Date() } },
+      { upsert: true }
+    );
+    const { _id, createdAt, updatedAt, ...document } = await collection.findOne({ _id: userStoreDocumentId(userId) });
     store = document;
   } else {
-    store = JSON.parse(await readFile(dataFile, "utf8"));
+    const storeFile = userStoreFile(userId);
+    await mkdir(dataDir, { recursive: true });
+    if (!existsSync(storeFile)) {
+      await writeFile(storeFile, JSON.stringify(defaultStore(), null, 2));
+    }
+    store = JSON.parse(await readFile(storeFile, "utf8"));
   }
   const normalized = normalizeStore(store);
-  if (normalized.changed) await writeStore(normalized.store);
+  if (normalized.changed) await writeStore(userId, normalized.store);
   return normalized.store;
 }
 
-async function writeStore(store) {
+async function writeStore(userId = "owner", store) {
   await ensureStore();
   const normalizedStore = normalizeStore(store).store;
 
   if (useMongo) {
     const collection = await getMongoCollection();
     await collection.replaceOne(
-      { _id: "entries" },
-      { _id: "entries", ...normalizedStore, updatedAt: new Date() },
+      { _id: userStoreDocumentId(userId) },
+      { _id: userStoreDocumentId(userId), ...normalizedStore, updatedAt: new Date() },
       { upsert: true }
     );
     return;
   }
 
-  await writeFile(dataFile, JSON.stringify(normalizedStore, null, 2));
+  await mkdir(dataDir, { recursive: true });
+  await writeFile(userStoreFile(userId), JSON.stringify(normalizedStore, null, 2));
 }
 
 function normalizeStore(store) {
@@ -315,33 +413,39 @@ async function handleApi(req, res) {
 
   if (req.method === "GET" && url.pathname === "/api/auth/status") {
     const auth = await readAuth();
-    const authenticated = await isAuthenticated(req);
+    const user = await authenticatedUser(req);
     return sendJson(res, 200, {
-      configured: Boolean(auth),
-      authenticated,
-      user: authenticated ? { id: "owner", name: "Me" } : null
+      configured: Boolean(auth?.users?.length),
+      authenticated: Boolean(user),
+      user,
+      users: auth?.users?.map(publicUser) || []
     });
   }
 
   if (req.method === "POST" && url.pathname === "/api/auth/setup") {
     if (await readAuth()) return sendJson(res, 409, { error: "Password is already configured." });
-    const { password } = await readBody(req);
+    const { name, password } = await readBody(req);
+    if (!name || !name.trim()) {
+      return sendJson(res, 400, { error: "Enter your name." });
+    }
     if (!password || password.length < 8) {
       return sendJson(res, 400, { error: "Use a password with at least 8 characters." });
     }
-    await writeAuth(hashPassword(password));
-    await createSession(res);
+    const user = createUser(name, password, "owner");
+    await writeAuth({ users: [user] });
+    await createSession(res, user);
     return sendJson(res, 200, { ok: true });
   }
 
   if (req.method === "POST" && url.pathname === "/api/auth/login") {
     const auth = await readAuth();
     if (!auth) return sendJson(res, 400, { error: "Create a password first." });
-    const { password } = await readBody(req);
-    if (!password || !verifyPassword(password, auth)) {
-      return sendJson(res, 401, { error: "Wrong password." });
+    const { name, password } = await readBody(req);
+    const user = findUser(auth, name);
+    if (!user || !password || !verifyPassword(password, user)) {
+      return sendJson(res, 401, { error: "Wrong user or password." });
     }
-    await createSession(res);
+    await createSession(res, user);
     return sendJson(res, 200, { ok: true });
   }
 
@@ -350,22 +454,41 @@ async function handleApi(req, res) {
     return sendJson(res, 200, { ok: true });
   }
 
-  if (!(await isAuthenticated(req))) {
+  const user = await authenticatedUser(req);
+  if (!user) {
     return sendJson(res, 401, { error: "Login required." });
   }
 
+  if (req.method === "POST" && url.pathname === "/api/auth/users") {
+    const auth = await readAuth();
+    const { name, password } = await readBody(req);
+    if (!name || !name.trim()) return sendJson(res, 400, { error: "Enter a name." });
+    if (!password || password.length < 8) {
+      return sendJson(res, 400, { error: "Use a password with at least 8 characters." });
+    }
+    if ((auth.users || []).some(item => item.name.toLowerCase() === name.trim().toLowerCase())) {
+      return sendJson(res, 409, { error: "That user already exists." });
+    }
+
+    const newUser = createUser(name, password, uniqueUserId(auth, name));
+    auth.users.push(newUser);
+    await writeAuth(auth);
+    await readStore(newUser.id);
+    return sendJson(res, 200, { ok: true, user: publicUser(newUser) });
+  }
+
   if (req.method === "GET" && url.pathname === "/api/data") {
-    return sendJson(res, 200, await readStore());
+    return sendJson(res, 200, await readStore(user.id));
   }
 
   if (req.method === "PUT" && url.pathname === "/api/data") {
     const payload = await readBody(req);
-    await writeStore(payload);
+    await writeStore(user.id, payload);
     return sendJson(res, 200, { ok: true });
   }
 
   if (req.method === "GET" && url.pathname === "/api/backup") {
-    return sendBackup(res, await readStore());
+    return sendBackup(res, await readStore(user.id));
   }
 
   if (req.method === "POST" && url.pathname === "/api/restore") {
@@ -373,7 +496,7 @@ async function handleApi(req, res) {
     if (!payload || typeof payload !== "object" || !payload.settings || !payload.days) {
       return sendJson(res, 400, { error: "Backup file must contain settings and days." });
     }
-    await writeStore({ settings: payload.settings, days: payload.days });
+    await writeStore(user.id, { settings: payload.settings, days: payload.days });
     return sendJson(res, 200, { ok: true });
   }
 

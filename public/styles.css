@@ -131,6 +131,7 @@ p {
 .metric-card,
 .settings-panel,
 .session-panel,
+.account-panel,
 .backup-panel {
   border: 1px solid rgba(255, 255, 255, 0.13);
   border-radius: 8px;
@@ -154,6 +155,7 @@ p {
 
 .settings-panel label,
 .session-panel label,
+.account-panel label,
 .backup-panel label {
   color: rgba(255, 255, 255, 0.76);
 }
@@ -183,12 +185,14 @@ p {
   font-size: 1.05rem;
 }
 
+.account-panel h2,
 .backup-panel h2 {
   margin: 0 0 12px;
   color: white;
   font-size: 1.05rem;
 }
 
+.account-panel button,
 .backup-panel button {
   width: 100%;
   margin-top: 10px;
@@ -355,6 +359,13 @@ p {
 .app-header h2 {
   margin: 0;
   font-size: 1.35rem;
+}
+
+.current-user {
+  display: block;
+  margin-top: 3px;
+  color: rgba(255, 255, 255, 0.68);
+  font-weight: 800;
 }
 
 .app-header .eyebrow {

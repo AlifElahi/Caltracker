@@ -1,10 +1,12 @@
 const authTitle = document.querySelector("#authTitle");
 const authCopy = document.querySelector("#authCopy");
+const nameInput = document.querySelector("#nameInput");
 const passwordInput = document.querySelector("#passwordInput");
 const authButton = document.querySelector("#authButton");
 const authStatus = document.querySelector("#authStatus");
 
 let needsSetup = false;
+let knownUsers = [];
 
 async function status() {
   const response = await fetch("/api/auth/status");
@@ -14,27 +16,44 @@ async function status() {
     return;
   }
 
+  knownUsers = payload.users || [];
   needsSetup = !payload.configured;
   if (needsSetup) {
-    authTitle.textContent = "Create password";
-    authCopy.textContent = "Choose a password for this app. You will use it to unlock your calorie data.";
-    authButton.textContent = "Create password";
+    authTitle.textContent = "Create first user";
+    authCopy.textContent = "Choose your name and password. You can add your wife after logging in.";
+    authButton.textContent = "Create user";
+    nameInput.autocomplete = "name";
     passwordInput.autocomplete = "new-password";
+  } else {
+    authTitle.textContent = "Login";
+    authCopy.textContent = knownUsers.length
+      ? `Users: ${knownUsers.map(user => user.name).join(", ")}`
+      : "Enter your user name and password.";
+    nameInput.placeholder = knownUsers[0]?.name || "User name";
+    if (knownUsers.length === 1) nameInput.value = knownUsers[0].name;
   }
 }
 
 async function submit() {
+  const name = nameInput.value.trim();
   const password = passwordInput.value;
-  if (!password || password.length < 8) {
-    authStatus.textContent = "Use at least 8 characters.";
+  if (!name) {
+    authStatus.textContent = "Enter your user name.";
+    nameInput.focus();
     return;
   }
 
-  authStatus.textContent = needsSetup ? "Creating password..." : "Logging in...";
+  if (!password || password.length < 8) {
+    authStatus.textContent = "Use at least 8 characters.";
+    passwordInput.focus();
+    return;
+  }
+
+  authStatus.textContent = needsSetup ? "Creating user..." : "Logging in...";
   const response = await fetch(needsSetup ? "/api/auth/setup" : "/api/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ password })
+    body: JSON.stringify({ name, password })
   });
   const payload = await response.json();
 
@@ -47,8 +66,8 @@ async function submit() {
 }
 
 authButton.addEventListener("click", submit);
-passwordInput.addEventListener("keydown", event => {
+[nameInput, passwordInput].forEach(input => input.addEventListener("keydown", event => {
   if (event.key === "Enter") submit();
-});
+}));
 
 status();

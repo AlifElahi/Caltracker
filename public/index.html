@@ -15,6 +15,7 @@
         <div>
           <p class="eyebrow">Tracker</p>
           <h2>Calorie dashboard</h2>
+          <small id="currentUser" class="current-user"></small>
         </div>
         <button id="logoutButton" class="ghost-button" type="button">Logout</button>
       </header>
@@ -67,6 +68,17 @@
             <button id="saveIntakeGoal" type="button">Save</button>
           </div>
           <p class="settings-note">Used only for intake colors.</p>
+        </section>
+
+        <section class="account-panel">
+          <p class="eyebrow">Account</p>
+          <h2>Add user</h2>
+          <label for="newUserName">Name</label>
+          <input id="newUserName" type="text" autocomplete="off" placeholder="Wife">
+          <label for="newUserPassword">Password</label>
+          <input id="newUserPassword" type="password" autocomplete="new-password" minlength="8">
+          <button id="addUserButton" type="button">Create user</button>
+          <p id="accountStatus" class="settings-note">Each user has a separate calendar.</p>
         </section>
 
         <section class="backup-panel">

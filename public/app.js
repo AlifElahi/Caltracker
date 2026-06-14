@@ -9,8 +9,13 @@ const todayRemainingLabel = document.querySelector("#todayRemainingLabel");
 const todayBalanceCard = document.querySelector("#todayBalanceCard");
 const latestWeightCard = document.querySelector("#latestWeightCard");
 const todayGoalCard = document.querySelector("#todayGoalCard");
+const currentUser = document.querySelector("#currentUser");
 const maintenanceInput = document.querySelector("#maintenanceInput");
 const intakeGoalInput = document.querySelector("#intakeGoalInput");
+const newUserName = document.querySelector("#newUserName");
+const newUserPassword = document.querySelector("#newUserPassword");
+const addUserButton = document.querySelector("#addUserButton");
+const accountStatus = document.querySelector("#accountStatus");
 const downloadBackup = document.querySelector("#downloadBackup");
 const restoreBackup = document.querySelector("#restoreBackup");
 const restoreFileName = document.querySelector("#restoreFileName");
@@ -239,7 +244,14 @@ async function apiFetch(url, options) {
   return response;
 }
 
+async function loadCurrentUser() {
+  const response = await apiFetch("/api/auth/status");
+  const payload = await response.json();
+  currentUser.textContent = payload.user ? `Signed in as ${payload.user.name}` : "";
+}
+
 async function loadStore() {
+  await loadCurrentUser();
   const response = await apiFetch("/api/data");
   store = await response.json();
   normalizeSettings();
@@ -248,6 +260,40 @@ async function loadStore() {
   sessionStart.value = store.settings.sessionStart || "";
   sessionEnd.value = store.settings.sessionEnd || "";
   render();
+}
+
+async function addUser() {
+  const name = newUserName.value.trim();
+  const password = newUserPassword.value;
+
+  if (!name) {
+    accountStatus.textContent = "Enter a name.";
+    newUserName.focus();
+    return;
+  }
+
+  if (!password || password.length < 8) {
+    accountStatus.textContent = "Use at least 8 characters.";
+    newUserPassword.focus();
+    return;
+  }
+
+  accountStatus.textContent = "Creating user...";
+  const response = await apiFetch("/api/auth/users", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, password })
+  });
+  const payload = await response.json();
+
+  if (!response.ok) {
+    accountStatus.textContent = payload.error || "Could not create user.";
+    return;
+  }
+
+  newUserName.value = "";
+  newUserPassword.value = "";
+  accountStatus.textContent = `${payload.user.name} can now log in.`;
 }
 
 async function saveStore() {
@@ -485,6 +531,17 @@ sessionToggle.addEventListener("click", () => {
 document.querySelector("#logoutButton").addEventListener("click", async () => {
   await apiFetch("/api/auth/logout", { method: "POST" });
   window.location.href = "/login.html";
+});
+
+addUserButton.addEventListener("click", addUser);
+
+[newUserName, newUserPassword].forEach(input => {
+  input.addEventListener("keydown", event => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      addUser();
+    }
+  });
 });
 
 document.querySelector("#saveMaintenance").addEventListener("click", async () => {
