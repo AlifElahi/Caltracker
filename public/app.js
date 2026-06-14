@@ -4,6 +4,8 @@ const sidebarToggle = document.querySelector("#sidebarToggle");
 const monthLabel = document.querySelector("#monthLabel");
 const monthBalance = document.querySelector("#monthBalance");
 const todayIntakeCard = document.querySelector("#todayIntakeCard");
+const todayRemainingCard = document.querySelector("#todayRemainingCard");
+const todayRemainingLabel = document.querySelector("#todayRemainingLabel");
 const todayBalanceCard = document.querySelector("#todayBalanceCard");
 const latestWeightCard = document.querySelector("#latestWeightCard");
 const todayGoalCard = document.querySelector("#todayGoalCard");
@@ -307,9 +309,14 @@ function render() {
 
 function renderDashboard() {
   const todayTotal = totals(toDateKey(new Date()));
+  const intakeGoal = Number(store.settings.intakeGoal || 1200);
+  const remaining = intakeGoal - todayTotal.intake;
   todayIntakeCard.textContent = todayTotal.intake;
   todayIntakeCard.className = intakeClass(todayTotal.intake);
   todayGoalCard.textContent = `target ${store.settings.intakeGoal || 1200}`;
+  todayRemainingCard.textContent = remaining >= 0 ? remaining : `+${Math.abs(remaining)}`;
+  todayRemainingCard.className = remaining >= 0 ? "intake-good" : "intake-over";
+  todayRemainingLabel.textContent = remaining >= 0 ? "calories left" : "over goal";
   todayBalanceCard.textContent = formatSigned(todayTotal.balance);
   todayBalanceCard.className = balanceClass(todayTotal.balance);
   latestWeightCard.textContent = latestWeight() || "--";
