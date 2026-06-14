@@ -1,0 +1,6 @@
+node_modules/
+.env
+.DS_Store
+
+# Local private app data. The server recreates these files as needed.
+data/*.json

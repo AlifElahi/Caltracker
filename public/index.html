@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#18272d">
+    <title>Calorie Calendar</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="app-header">
+        <button id="sidebarToggle" class="icon-button" type="button" aria-expanded="true" aria-label="Toggle sidebar">‹</button>
+        <div>
+          <p class="eyebrow">Tracker</p>
+          <h2>Calorie dashboard</h2>
+        </div>
+        <button id="logoutButton" class="ghost-button" type="button">Logout</button>
+      </header>
+
+      <aside class="sidebar">
+        <section class="metric-card">
+          <span>This month</span>
+          <strong id="monthBalance">0</strong>
+          <small>net calories</small>
+        </section>
+
+        <section class="session-panel">
+          <div class="section-title">
+            <div>
+              <p class="eyebrow">Session</p>
+              <h2>Session report</h2>
+            </div>
+            <button id="sessionToggle" class="mini-toggle" type="button" aria-expanded="true" aria-label="Toggle session report">−</button>
+          </div>
+          <div id="sessionBody" class="session-body">
+            <label for="sessionStart">Start date</label>
+            <input id="sessionStart" type="date">
+            <label for="sessionEnd">End date</label>
+            <input id="sessionEnd" type="date">
+            <div class="input-row session-buttons">
+              <button id="saveSession" type="button">Save</button>
+              <button id="clearSession" class="quiet-button" type="button">Clear</button>
+            </div>
+            <div class="session-report">
+              <div><span>Days</span><strong id="sessionDays">0</strong></div>
+              <div><span>Intake</span><strong id="sessionIntake">0</strong></div>
+              <div><span>Burned</span><strong id="sessionBurned">0</strong></div>
+              <div><span>Balance</span><strong id="sessionBalance">0</strong></div>
+              <div><span>Weight</span><strong id="sessionWeight">--</strong></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="settings-panel">
+          <label for="maintenanceInput">Daily maintenance</label>
+          <div class="input-row">
+            <input id="maintenanceInput" type="number" min="0" step="10">
+            <button id="saveMaintenance" type="button">Save</button>
+          </div>
+          <p class="settings-note">Changes apply from today forward.</p>
+
+          <label for="intakeGoalInput">Daily intake goal</label>
+          <div class="input-row">
+            <input id="intakeGoalInput" type="number" min="0" step="10">
+            <button id="saveIntakeGoal" type="button">Save</button>
+          </div>
+          <p class="settings-note">Used only for intake colors.</p>
+        </section>
+
+        <section class="legend">
+          <span><i class="dot budget-good"></i> Under goal</span>
+          <span><i class="dot budget-warn"></i> Near goal</span>
+          <span><i class="dot budget-over"></i> Over goal</span>
+        </section>
+      </aside>
+
+      <main class="main">
+        <header class="toolbar">
+          <button id="prevMonth" class="icon-button" type="button" aria-label="Previous month">‹</button>
+          <h2 id="monthLabel"></h2>
+          <button id="nextMonth" class="icon-button" type="button" aria-label="Next month">›</button>
+          <button id="todayButton" type="button">Today</button>
+        </header>
+
+        <section class="dashboard-strip" aria-label="Current summary">
+          <div class="dash-card">
+            <span>Today intake</span>
+            <strong id="todayIntakeCard">0</strong>
+            <small id="todayGoalCard">target 1200</small>
+          </div>
+          <div class="dash-card">
+            <span>Today net</span>
+            <strong id="todayBalanceCard">0</strong>
+            <small>vs maintenance</small>
+          </div>
+          <div class="dash-card">
+            <span>Last weight</span>
+            <strong id="latestWeightCard">--</strong>
+            <small>kg</small>
+          </div>
+        </section>
+
+        <section class="calendar" aria-label="Calorie calendar">
+          <div class="weekdays">
+            <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+          </div>
+          <div id="calendarGrid" class="calendar-grid"></div>
+        </section>
+      </main>
+    </div>
+
+    <dialog id="dayDialog" class="day-dialog">
+      <form method="dialog" class="dialog-frame">
+        <header class="dialog-header">
+          <div>
+            <p class="eyebrow">Daily log</p>
+            <h3 id="dialogDate"></h3>
+          </div>
+          <button class="icon-button" value="cancel" aria-label="Close">×</button>
+        </header>
+
+        <section class="summary-strip">
+          <div><span>Intake</span><strong id="dayIntake">0</strong></div>
+          <div><span>Maintenance</span><strong id="dayMaintenance">0</strong></div>
+          <div><span>Activity</span><strong id="dayBurned">0</strong></div>
+          <div><span>Net</span><strong id="dayBalance">0</strong></div>
+        </section>
+
+        <section class="session-actions">
+          <button id="setSessionStart" class="ghost-button" type="button">Set session start</button>
+          <button id="setSessionEnd" class="ghost-button" type="button">Set session end</button>
+        </section>
+
+        <section class="entry-grid">
+          <div class="panel food-panel">
+            <div class="panel-heading">
+              <h4>Food</h4>
+              <span id="entryCount">0 entries</span>
+            </div>
+            <div class="food-entry-row">
+              <div>
+                <label for="manualLabel">Item</label>
+                <input id="manualLabel" type="text" placeholder="Diet cola, apple, rice bowl">
+              </div>
+              <div>
+                <label for="manualCalories">Calories</label>
+                <input id="manualCalories" type="number" min="0" step="1" placeholder="0">
+              </div>
+              <button id="addManual" type="button">Add</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="entry-grid">
+          <div class="panel">
+            <h4>Walking</h4>
+            <label for="walkCalories">Calories burned</label>
+            <input id="walkCalories" type="number" min="0" step="1">
+            <button id="saveWalk" type="button">Save walking</button>
+          </div>
+          <div class="panel">
+            <div class="panel-heading">
+              <h4>Workout</h4>
+              <label class="toggle-row" for="workoutDone">
+                <input id="workoutDone" type="checkbox">
+                <span>Done</span>
+              </label>
+            </div>
+            <label for="workoutCalories">Calories burned optional</label>
+            <input id="workoutCalories" type="number" min="0" step="1">
+            <button id="saveWorkout" type="button">Save workout</button>
+          </div>
+          <div class="panel">
+            <h4>Weight</h4>
+            <label for="weightKg">Weight in kg</label>
+            <input id="weightKg" type="number" min="0" step="0.1">
+            <button id="saveWeight" type="button">Save weight</button>
+          </div>
+        </section>
+
+        <section class="log-section">
+          <h4>Entries</h4>
+          <div id="entryList" class="entry-list"></div>
+        </section>
+      </form>
+    </dialog>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>

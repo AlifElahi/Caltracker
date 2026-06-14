@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Login - Calorie Calendar</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body class="auth-body">
+    <main class="auth-shell">
+      <section class="auth-panel">
+        <p class="eyebrow">Calorie Calendar</p>
+        <h1 id="authTitle">Login</h1>
+        <p id="authCopy" class="auth-copy">Enter your owner password to open the app.</p>
+
+        <label for="passwordInput">Password</label>
+        <input id="passwordInput" type="password" autocomplete="current-password" minlength="8">
+        <button id="authButton" type="button">Login</button>
+        <p id="authStatus" class="status"></p>
+      </section>
+    </main>
+
+    <script src="/login.js" type="module"></script>
+  </body>
+</html>
